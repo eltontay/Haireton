@@ -54,10 +54,10 @@ BT3102 Project
 
 #### (i) Write output probabilities and transition probabilities
 
-### (ii) Examine output probabilities
+#### (ii) Examine output probabilities
 
-### (iv) How to use these probabilities to predict the next stock price change
+#### (iv) How to use these probabilities to predict the next stock price change
 
-### (v) Write a function cat_predict that implements answer for previous question
+#### (v) Write a function cat_predict that implements answer for previous question
 
-### (vi) Average squared error of predictions
+#### (vi) Average squared error of predictions
