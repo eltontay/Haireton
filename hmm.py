@@ -1,5 +1,54 @@
+
+def countOutputNumerator(twitter_train_tag,twitter_tags) :
+    
+    # numerator -> count using train and tags, see how many respective word is pegged to that tag
+    with open(twitter_train_tag) as fin:
+        predicted_tags = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
+    
+    #for denominator
+    with open(twitter_tags) as fin:
+        twitter_tags = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
+
+    twitter_tags_dict = { tag : 0 for tag in twitter_tags}
+    #iterate through the predicted tags, store in key-value dict
+    dict = {}
+    dict_count = {} #denominator
+    delta = 0.01 # can also be 0.1, 1, 10
+    for string in predicted_tags :
+        string_list = string.split("\t")
+        valuestring = string_list[0].lower()
+        twitter_tags_dict[string_list[1]] += 1
+        #filter all the users into the same key
+        if valuestring.startswith('@user') :
+            valuestring = '@user'
+        #filter all the http into the http
+        if valuestring.startswith('http') :
+            valuestring = 'http'
+        twitter_tags_dict[string_list[1]] += 1 #counting denom
+        #empty list
+        if dict.get(valuestring) == None:
+            dict[valuestring] = [string_list[1]]
+            dict_count[valuestring] = {}
+            dict_count[valuestring][string_list[1]] = 1
+        #not empty list
+        else :
+            dict[valuestring].append(string_list[1])
+            # value as a dictionary
+            if dict_count[valuestring].get(string_list[1]) :
+                dict_count[valuestring][string_list[1]] += 1
+            else :
+                dict_count[valuestring][string_list[1]] = 1
+        for key in dict_count[valuestring] :
+            numerator = dict_count[valuestring][key] + delta
+            denominator = twitter_tags_dict[key] + delta * (len(dict))
+            dict_count[valuestring][key]  = numerator/denominator
+    with open('naive_output_probs.txt','w') as data :
+        data.write(str(dict_count))
+    return data
+
 # Implement the six functions below
 def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_filename):
+
     pass
 
 def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename, out_prediction_filename):
@@ -57,91 +106,95 @@ def run():
     uncomment them later.
     This sequence of code corresponds to the sequence of questions in your project handout.
     '''
-
-    ddir = '' #your working dir
+    
+    
+    ddir = './' #your working dir
 
     in_train_filename = f'{ddir}/twitter_train.txt'
+    in_tag_filename = f'{ddir}/twitter_tags.txt'
 
-    naive_output_probs_filename = f'{ddir}/naive_output_probs.txt'
+    # naive_output_probs_filename = f'{ddir}/naive_output_probs.txt'
 
-    in_test_filename = f'{ddir}/twitter_dev_no_tag.txt'
-    in_ans_filename  = f'{ddir}/twitter_dev_ans.txt'
-    naive_prediction_filename = f'{ddir}/naive_predictions.txt'
-    naive_predict(naive_output_probs_filename, in_test_filename, naive_prediction_filename)
-    correct, total, acc = evaluate(naive_prediction_filename, in_ans_filename)
-    print(f'Naive prediction accuracy:     {correct}/{total} = {acc}')
+    # in_test_filename = f'{ddir}/twitter_dev_no_tag.txt'
+    
+    countOutputNumerator(in_train_filename,in_tag_filename)
+    # in_ans_filename  = f'{ddir}/twitter_dev_ans.txt'
+    # naive_prediction_filename = f'{ddir}/naive_predictions.txt'
+    # naive_predict(naive_output_probs_filename, in_test_filename, naive_prediction_filename)
+    # correct, total, acc = evaluate(naive_prediction_filename, in_ans_filename)
+    # print(f'Naive prediction accuracy:     {correct}/{total} = {acc}')
 
-    naive_prediction_filename2 = f'{ddir}/naive_predictions2.txt'
-    naive_predict2(naive_output_probs_filename, in_train_filename, in_test_filename, naive_prediction_filename2)
-    correct, total, acc = evaluate(naive_prediction_filename2, in_ans_filename)
-    print(f'Naive prediction2 accuracy:    {correct}/{total} = {acc}')
+    # naive_prediction_filename2 = f'{ddir}/naive_predictions2.txt'
+    # naive_predict2(naive_output_probs_filename, in_train_filename, in_test_filename, naive_prediction_filename2)
+    # correct, total, acc = evaluate(naive_prediction_filename2, in_ans_filename)
+    # print(f'Naive prediction2 accuracy:    {correct}/{total} = {acc}')
 
-    trans_probs_filename =  f'{ddir}/trans_probs.txt'
-    output_probs_filename = f'{ddir}/output_probs.txt'
+    # trans_probs_filename =  f'{ddir}/trans_probs.txt'
+    # output_probs_filename = f'{ddir}/output_probs.txt'
 
-    in_tags_filename = f'{ddir}/twitter_tags.txt'
-    viterbi_predictions_filename = f'{ddir}/viterbi_predictions.txt'
-    viterbi_predict(in_tags_filename, trans_probs_filename, output_probs_filename, in_test_filename,
-                    viterbi_predictions_filename)
-    correct, total, acc = evaluate(viterbi_predictions_filename, in_ans_filename)
-    print(f'Viterbi prediction accuracy:   {correct}/{total} = {acc}')
+    # in_tags_filename = f'{ddir}/twitter_tags.txt'
+    # viterbi_predictions_filename = f'{ddir}/viterbi_predictions.txt'
+    # viterbi_predict(in_tags_filename, trans_probs_filename, output_probs_filename, in_test_filename,
+    #                 viterbi_predictions_filename)
+    # correct, total, acc = evaluate(viterbi_predictions_filename, in_ans_filename)
+    # print(f'Viterbi prediction accuracy:   {correct}/{total} = {acc}')
 
-    trans_probs_filename2 =  f'{ddir}/trans_probs2.txt'
-    output_probs_filename2 = f'{ddir}/output_probs2.txt'
+    # trans_probs_filename2 =  f'{ddir}/trans_probs2.txt'
+    # output_probs_filename2 = f'{ddir}/output_probs2.txt'
 
-    viterbi_predictions_filename2 = f'{ddir}/viterbi_predictions2.txt'
-    viterbi_predict2(in_tags_filename, trans_probs_filename2, output_probs_filename2, in_test_filename,
-                     viterbi_predictions_filename2)
-    correct, total, acc = evaluate(viterbi_predictions_filename2, in_ans_filename)
-    print(f'Viterbi2 prediction accuracy:  {correct}/{total} = {acc}')
+    # viterbi_predictions_filename2 = f'{ddir}/viterbi_predictions2.txt'
+    # viterbi_predict2(in_tags_filename, trans_probs_filename2, output_probs_filename2, in_test_filename,
+    #                  viterbi_predictions_filename2)
+    # correct, total, acc = evaluate(viterbi_predictions_filename2, in_ans_filename)
+    # print(f'Viterbi2 prediction accuracy:  {correct}/{total} = {acc}')
 
-    in_train_filename   = f'{ddir}/twitter_train_no_tag.txt'
-    in_tag_filename     = f'{ddir}/twitter_tags.txt'
-    out_trans_filename  = f'{ddir}/trans_probs4.txt'
-    out_output_filename = f'{ddir}/output_probs4.txt'
-    max_iter = 10
-    seed     = 8
-    thresh   = 1e-4
-    forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
-                     max_iter, seed, thresh)
+    # in_train_filename   = f'{ddir}/twitter_train_no_tag.txt'
+    # in_tag_filename     = f'{ddir}/twitter_tags.txt'
+    # out_trans_filename  = f'{ddir}/trans_probs4.txt'
+    # out_output_filename = f'{ddir}/output_probs4.txt'
+    # max_iter = 10
+    # seed     = 8
+    # thresh   = 1e-4
+    # forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
+    #                  max_iter, seed, thresh)
 
-    trans_probs_filename3 =  f'{ddir}/trans_probs3.txt'
-    output_probs_filename3 = f'{ddir}/output_probs3.txt'
-    viterbi_predictions_filename3 = f'{ddir}/fb_predictions3.txt'
-    viterbi_predict2(in_tags_filename, trans_probs_filename3, output_probs_filename3, in_test_filename,
-                     viterbi_predictions_filename3)
-    correct, total, acc = evaluate(viterbi_predictions_filename3, in_ans_filename)
-    print(f'iter 0 prediction accuracy:    {correct}/{total} = {acc}')
+    # trans_probs_filename3 =  f'{ddir}/trans_probs3.txt'
+    # output_probs_filename3 = f'{ddir}/output_probs3.txt'
+    # viterbi_predictions_filename3 = f'{ddir}/fb_predictions3.txt'
+    # viterbi_predict2(in_tags_filename, trans_probs_filename3, output_probs_filename3, in_test_filename,
+    #                  viterbi_predictions_filename3)
+    # correct, total, acc = evaluate(viterbi_predictions_filename3, in_ans_filename)
+    # print(f'iter 0 prediction accuracy:    {correct}/{total} = {acc}')
 
-    trans_probs_filename4 =  f'{ddir}/trans_probs4.txt'
-    output_probs_filename4 = f'{ddir}/output_probs4.txt'
-    viterbi_predictions_filename4 = f'{ddir}/fb_predictions4.txt'
-    viterbi_predict2(in_tags_filename, trans_probs_filename4, output_probs_filename4, in_test_filename,
-                     viterbi_predictions_filename4)
-    correct, total, acc = evaluate(viterbi_predictions_filename4, in_ans_filename)
-    print(f'iter 10 prediction accuracy:   {correct}/{total} = {acc}')
+    # trans_probs_filename4 =  f'{ddir}/trans_probs4.txt'
+    # output_probs_filename4 = f'{ddir}/output_probs4.txt'
+    # viterbi_predictions_filename4 = f'{ddir}/fb_predictions4.txt'
+    # viterbi_predict2(in_tags_filename, trans_probs_filename4, output_probs_filename4, in_test_filename,
+    #                  viterbi_predictions_filename4)
+    # correct, total, acc = evaluate(viterbi_predictions_filename4, in_ans_filename)
+    # print(f'iter 10 prediction accuracy:   {correct}/{total} = {acc}')
 
-    in_train_filename   = f'{ddir}/cat_price_changes_train.txt'
-    in_tag_filename     = f'{ddir}/cat_states.txt'
-    out_trans_filename  = f'{ddir}/cat_trans_probs.txt'
-    out_output_filename = f'{ddir}/cat_output_probs.txt'
-    max_iter = 1000000
-    seed     = 8
-    thresh   = 1e-4
-    forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
-                     max_iter, seed, thresh)
+    # in_train_filename   = f'{ddir}/cat_price_changes_train.txt'
+    # in_tag_filename     = f'{ddir}/cat_states.txt'
+    # out_trans_filename  = f'{ddir}/cat_trans_probs.txt'
+    # out_output_filename = f'{ddir}/cat_output_probs.txt'
+    # max_iter = 1000000
+    # seed     = 8
+    # thresh   = 1e-4
+    # forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
+    #                  max_iter, seed, thresh)
 
-    in_test_filename         = f'{ddir}/cat_price_changes_dev.txt'
-    in_trans_probs_filename  = f'{ddir}/cat_trans_probs.txt'
-    in_output_probs_filename = f'{ddir}/cat_output_probs.txt'
-    in_states_filename       = f'{ddir}/cat_states.txt'
-    predictions_filename     = f'{ddir}/cat_predictions.txt'
-    cat_predict(in_test_filename, in_trans_probs_filename, in_output_probs_filename, in_states_filename,
-                predictions_filename)
+    # in_test_filename         = f'{ddir}/cat_price_changes_dev.txt'
+    # in_trans_probs_filename  = f'{ddir}/cat_trans_probs.txt'
+    # in_output_probs_filename = f'{ddir}/cat_output_probs.txt'
+    # in_states_filename       = f'{ddir}/cat_states.txt'
+    # predictions_filename     = f'{ddir}/cat_predictions.txt'
+    # cat_predict(in_test_filename, in_trans_probs_filename, in_output_probs_filename, in_states_filename,
+    #             predictions_filename)
 
-    in_ans_filename     = f'{ddir}/cat_price_changes_dev_ans.txt'
-    ave_sq_err, sq_err, num_ex = evaluate_ave_squared_error(predictions_filename, in_ans_filename)
-    print(f'average squared error for {num_ex} examples: {ave_sq_err}')
+    # in_ans_filename     = f'{ddir}/cat_price_changes_dev_ans.txt'
+    # ave_sq_err, sq_err, num_ex = evaluate_ave_squared_error(predictions_filename, in_ans_filename)
+    # print(f'average squared error for {num_ex} examples: {ave_sq_err}')
 
 if __name__ == '__main__':
     run()
