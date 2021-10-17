@@ -43,11 +43,37 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
             denominator = twitter_tags_dict[key] + delta * ((len(dict))+1)
             dict_count[valuestring][key]  = numerator/denominator
     with open('naive_output_probs.txt','w') as data :
-        data.write(str(dict_count))
+        for k,v in dict_count.items() :
+            data.write("%s:%s\n" % (k,v))
     return data
 
 # Implement the six functions below
 def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_filename):
+
+    #reading twitter_dev_no_tags
+    with open(in_test_filename) as fin:
+        test_file = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
+    
+    #reading naive_output_probs.txt
+    prob_dict = {}
+    with open(in_output_probs_filename) as fin:
+        for line in fin : 
+            (key,value) = line.split()
+            prob_dict[key] = value
+
+
+    predict_tag = []
+    for word in test_file :
+        highest = 0
+        tag = ''
+        if prob_dict.get(word) != None : 
+            for key in word :
+                if prob[word][key] > highest : 
+                    highest = prob_file[word][key]
+                    tag = key
+        predict_tag.append(tag)
+    print(predict_tag)
+
 
     pass
 
@@ -113,9 +139,9 @@ def run():
     in_train_filename = f'{ddir}/twitter_train.txt'
     in_tag_filename = f'{ddir}/twitter_tags.txt'
 
-    # naive_output_probs_filename = f'{ddir}/naive_output_probs.txt'
+    naive_output_probs_filename = f'{ddir}/naive_output_probs.txt'
 
-    # in_test_filename = f'{ddir}/twitter_dev_no_tag.txt'
+    in_test_filename = f'{ddir}/twitter_dev_no_tag.txt'
     
     countOutputNumerator(in_train_filename,in_tag_filename)
     # in_ans_filename  = f'{ddir}/twitter_dev_ans.txt'
