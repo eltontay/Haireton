@@ -1,4 +1,4 @@
-
+# return dict due to complications when opening file
 def countOutputNumerator(twitter_train_tag,twitter_tags) :
     
     # numerator -> count using train and tags, see how many respective word is pegged to that tag
@@ -42,8 +42,11 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
             numerator = dict_count[valuestring][key] + delta
             denominator = twitter_tags_dict[key] + delta * ((len(dict))+1)
             dict_count[valuestring][key]  = numerator/denominator
+    return dict_count
+
+def dictToTxt(file) :
     with open('naive_output_probs.txt','w') as data :
-        for k,v in dict_count.items() :
+        for k,v in file.items() :
             data.write("%s:%s\n" % (k,v))
     return data
 
@@ -54,25 +57,19 @@ def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_fil
     with open(in_test_filename) as fin:
         test_file = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
     
-    #reading naive_output_probs.txt
-    prob_dict = {}
-    with open(in_output_probs_filename) as fin:
-        for line in fin : 
-            (key,value) = line.split()
-            prob_dict[key] = value
+    print(in_output_probs_filename)
 
-
-    predict_tag = []
-    for word in test_file :
-        highest = 0
-        tag = ''
-        if prob_dict.get(word) != None : 
-            for key in word :
-                if prob[word][key] > highest : 
-                    highest = prob_file[word][key]
-                    tag = key
-        predict_tag.append(tag)
-    print(predict_tag)
+    # predict_tag = []
+    # for word in test_file :
+    #     highest = 0
+    #     tag = ''
+    #     if prob_dict.get(word) != None : 
+    #         for key in word :
+    #             if prob[word][key] > highest : 
+    #                 highest = prob_file[word][key]
+    #                 tag = key
+    #     predict_tag.append(tag)
+    # print(predict_tag)
 
 
     pass
@@ -143,10 +140,11 @@ def run():
 
     in_test_filename = f'{ddir}/twitter_dev_no_tag.txt'
     
-    countOutputNumerator(in_train_filename,in_tag_filename)
-    # in_ans_filename  = f'{ddir}/twitter_dev_ans.txt'
-    # naive_prediction_filename = f'{ddir}/naive_predictions.txt'
-    # naive_predict(naive_output_probs_filename, in_test_filename, naive_prediction_filename)
+    prob_dict = countOutputNumerator(in_train_filename,in_tag_filename)
+    dictToTxt(prob_dict)
+    in_ans_filename  = f'{ddir}/twitter_dev_ans.txt'
+    naive_prediction_filename = f'{ddir}/naive_predictions.txt'
+    naive_predict(prob_dict, in_test_filename, naive_prediction_filename)
     # correct, total, acc = evaluate(naive_prediction_filename, in_ans_filename)
     # print(f'Naive prediction accuracy:     {correct}/{total} = {acc}')
 
