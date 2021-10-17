@@ -40,7 +40,7 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
                 dict_count[valuestring][string_list[1]] = 1
         for key in dict_count[valuestring] :
             numerator = dict_count[valuestring][key] + delta
-            denominator = twitter_tags_dict[key] + delta * (len(dict))
+            denominator = twitter_tags_dict[key] + delta * ((len(dict))+1)
             dict_count[valuestring][key]  = numerator/denominator
     with open('naive_output_probs.txt','w') as data :
         data.write(str(dict_count))
