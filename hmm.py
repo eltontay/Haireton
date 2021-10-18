@@ -1,3 +1,5 @@
+import random
+
 # return dict due to complications when opening file
 def countOutputNumerator(twitter_train_tag,twitter_tags) :
     
@@ -13,7 +15,7 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
     #iterate through the predicted tags, store in key-value dict
     dict = {}
     dict_count = {} #denominator
-    delta = 0.01 # can also be 0.1, 1, 10
+    delta = 10 # can also be 0.01, 0.1, 1, 10
     for string in predicted_tags :
         string_list = string.split("\t")
         valuestring = string_list[0].lower()
@@ -50,28 +52,39 @@ def dictToTxt(file) :
             data.write("%s:%s\n" % (k,v))
     return data
 
-# Implement the six functions below
 def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_filename):
 
     #reading twitter_dev_no_tags
     with open(in_test_filename) as fin:
         test_file = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
     
-    print(in_output_probs_filename)
-
-    # predict_tag = []
-    # for word in test_file :
-    #     highest = 0
-    #     tag = ''
-    #     if prob_dict.get(word) != None : 
-    #         for key in word :
-    #             if prob[word][key] > highest : 
-    #                 highest = prob_file[word][key]
-    #                 tag = key
-    #     predict_tag.append(tag)
-    # print(predict_tag)
-
-
+    # print(in_output_probs_filename)
+    
+    predict_tag = []
+    for word in test_file :
+        highest = 0
+        tag = ''
+        found = False # if the word doesnt match , take away the last letter from the word and check again
+        changed_word = word
+        while found == False :
+            if in_output_probs_filename.get(changed_word) != None : 
+                for key in in_output_probs_filename[changed_word] :
+                    curr_prob = in_output_probs_filename[changed_word][key]
+                    if curr_prob > highest : 
+                        highest = curr_prob
+                        tag = key
+                found = True
+            elif len(changed_word) > 1:
+                changed_word = changed_word[:-1]
+            else : # if word does not exist with the training dataset, use random
+                tag = random.choice(['@',',','L','~','&','S','N','A','G','$','V','R','X','E','T','M','D','O','Z','!','^','U','P','Y'])
+                found = True
+        predict_tag.append(tag)
+    text = open("naive_predictions.txt","w")
+    for element in predict_tag :
+        text.write(element + "\n")
+    text.close()
+    return text
     pass
 
 def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename, out_prediction_filename):
@@ -145,8 +158,9 @@ def run():
     in_ans_filename  = f'{ddir}/twitter_dev_ans.txt'
     naive_prediction_filename = f'{ddir}/naive_predictions.txt'
     naive_predict(prob_dict, in_test_filename, naive_prediction_filename)
-    # correct, total, acc = evaluate(naive_prediction_filename, in_ans_filename)
-    # print(f'Naive prediction accuracy:     {correct}/{total} = {acc}')
+
+    correct, total, acc = evaluate(naive_prediction_filename, in_ans_filename)
+    print(f'Naive prediction accuracy:     {correct}/{total} = {acc}')
 
     # naive_prediction_filename2 = f'{ddir}/naive_predictions2.txt'
     # naive_predict2(naive_output_probs_filename, in_train_filename, in_test_filename, naive_prediction_filename2)
