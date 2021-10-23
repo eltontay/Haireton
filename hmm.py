@@ -1,3 +1,4 @@
+#blurb
 import random
 
 # return dict due to complications when opening file
@@ -44,6 +45,7 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
             numerator = dict_count[valuestring][key] + delta
             denominator = twitter_tags_dict[key] + delta * ((len(dict))+1)
             dict_count[valuestring][key]  = numerator/denominator
+        print(dict_count)
     return dict_count
 
 def dictToTxt(file) :
