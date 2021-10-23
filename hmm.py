@@ -59,13 +59,18 @@ def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_fil
         test_file = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
     
     # print(in_output_probs_filename)
-    
     predict_tag = []
     for word in test_file :
         highest = 0
         tag = ''
         found = False # if the word doesnt match , take away the last letter from the word and check again
-        changed_word = word
+        changed_word = word.lower()
+        #filter all the users into the same key
+        if changed_word.startswith('@user') :
+            changed_word = '@user'
+        #filter all the http into the http
+        if changed_word.startswith('http') :
+            changed_word = 'http'
         while found == False :
             if in_output_probs_filename.get(changed_word) != None : 
                 for key in in_output_probs_filename[changed_word] :
@@ -76,10 +81,13 @@ def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_fil
                 found = True
             elif len(changed_word) > 1:
                 changed_word = changed_word[:-1]
+            # else :
+            #     found = True
             else : # if word does not exist with the training dataset, use random
                 tag = random.choice(['@',',','L','~','&','S','N','A','G','$','V','R','X','E','T','M','D','O','Z','!','^','U','P','Y'])
                 found = True
         predict_tag.append(tag)
+    print(len(predict_tag))
     text = open("naive_predictions.txt","w")
     for element in predict_tag :
         text.write(element + "\n")
