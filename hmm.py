@@ -16,7 +16,8 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
     #iterate through the predicted tags, store in key-value dict
     dict = {}
     dict_count = {} #denominator
-    delta = 10 # can also be 0.01, 0.1, 1, 10
+    dict_prob = {} #probability
+    delta = 1 # can also be 0.01, 0.1, 1, 10
     for string in predicted_tags :
         string_list = string.split("\t")
         valuestring = string_list[0].lower()
@@ -40,12 +41,15 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
                 dict_count[valuestring][string_list[1]] += 1
             else :
                 dict_count[valuestring][string_list[1]] = 1
-    for key in dict_count[valuestring] :
-        numerator = dict_count[valuestring][key] + delta
-        denominator = twitter_tags_dict[key] + delta * ((len(dict))+1)
-        dict_count[valuestring][key]  = numerator/denominator
-    print(dict_count)
-    return dict_count
+
+    dict_prob = dict_count;
+    for word in dict_prob :
+        for tag in dict_prob[word] :
+            numerator = dict_count[word][tag] + delta
+            denominator = twitter_tags_dict[tag] + delta * (len(dict) +1)
+            dict_prob[word][tag] = numerator/denominator
+    print(dict_prob)
+    return dict_prob
 
 def dictToTxt(file) :
     with open('naive_output_probs.txt','w') as data :
