@@ -97,7 +97,49 @@ def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_fil
     pass
 
 def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename, out_prediction_filename):
-    pass
+    # j = argmax P(y = j| x = w)
+    # ie. argmax P(y = j, x = w) as denominator P(x = w) constant for all j
+    # multiply output probabilities from naive_output_probs.txt by P(y = j)
+
+    output = ""
+    delta = 0.1
+
+    # get all tags as list
+    with open('twitter_tags.txt') as tags_file:
+        tags = [l.strip() for l in tags_file.readlines() if len(l.strip()) != 0]
+
+    # get P(y = j)
+    with open(in_train_filename) as train_file:
+        train_tags = [l.strip()[-1] for l in train_file.readlines() if len(l.strip()) != 0]
+        prob_tags = dict()
+        for tag in tags:
+            prob_tags[tag] = train_tags.count(tag) / len(train_tags)
+    
+    with open(in_test_filename) as test_file:
+        for l in test_file.readlines():
+            l = l.strip()
+            # case: empty line
+            if (len(l) == 0):
+                output += '\n'
+            else:
+                # case: word to be processed
+                probabilities = dict()
+                if (in_output_probs_filename.get(l, None) != None):
+                    # case: word found in output prob dict
+                    for key in in_output_probs_filename[l]:
+                        probabilities[key] = in_output_probs_filename[l][key] * prob_tags[key]
+                        highest_prob_tag = max(probabilities, key=lambda k: probabilities[k])
+                else:
+                    # case: word not found in output prob dict
+                    # smoothing 
+                    smoothing_prob = dict()
+                    for key in prob_tags:
+                        smoothing_prob[key] = delta * prob_tags[key]
+                    highest_prob_tag = max(smoothing_prob, key=lambda k: smoothing_prob[k])
+
+                output += highest_prob_tag + '\n'
+    text = open(out_prediction_filename,"w")
+    text.write(output)
 
 def viterbi_predict(in_tags_filename, in_trans_probs_filename, in_output_probs_filename, in_test_filename,
                     out_predictions_filename):
@@ -171,10 +213,10 @@ def run():
     correct, total, acc = evaluate(naive_prediction_filename, in_ans_filename)
     print(f'Naive prediction accuracy:     {correct}/{total} = {acc}')
 
-    # naive_prediction_filename2 = f'{ddir}/naive_predictions2.txt'
-    # naive_predict2(naive_output_probs_filename, in_train_filename, in_test_filename, naive_prediction_filename2)
-    # correct, total, acc = evaluate(naive_prediction_filename2, in_ans_filename)
-    # print(f'Naive prediction2 accuracy:    {correct}/{total} = {acc}')
+    naive_prediction_filename2 = f'{ddir}/naive_predictions2.txt'
+    naive_predict2(prob_dict, in_train_filename, in_test_filename, naive_prediction_filename2) # used prob_dict instead of naive_output_probs_filename
+    correct, total, acc = evaluate(naive_prediction_filename2, in_ans_filename)
+    print(f'Naive prediction2 accuracy:    {correct}/{total} = {acc}')
 
     # trans_probs_filename =  f'{ddir}/trans_probs.txt'
     # output_probs_filename = f'{ddir}/output_probs.txt'
