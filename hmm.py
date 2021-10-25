@@ -20,7 +20,6 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
     for string in predicted_tags :
         string_list = string.split("\t")
         valuestring = string_list[0].lower()
-        twitter_tags_dict[string_list[1]] += 1
         #filter all the users into the same key
         if valuestring.startswith('@user') :
             valuestring = '@user'
@@ -41,11 +40,11 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
                 dict_count[valuestring][string_list[1]] += 1
             else :
                 dict_count[valuestring][string_list[1]] = 1
-        for key in dict_count[valuestring] :
-            numerator = dict_count[valuestring][key] + delta
-            denominator = twitter_tags_dict[key] + delta * ((len(dict))+1)
-            dict_count[valuestring][key]  = numerator/denominator
-        print(dict_count)
+    for key in dict_count[valuestring] :
+        numerator = dict_count[valuestring][key] + delta
+        denominator = twitter_tags_dict[key] + delta * ((len(dict))+1)
+        dict_count[valuestring][key]  = numerator/denominator
+    print(dict_count)
     return dict_count
 
 def dictToTxt(file) :
