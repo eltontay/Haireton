@@ -1,5 +1,6 @@
-#blurb
 import random
+import pandas as pd
+import numpy as np
 
 # return dict due to complications when opening file
 def countOutputNumerator(twitter_train_tag,twitter_tags) :
@@ -149,9 +150,315 @@ def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename
     text = open(out_prediction_filename,"w")
     text.write(output)
 
-def viterbi_predict(in_tags_filename, in_trans_probs_filename, in_output_probs_filename, in_test_filename,
-                    out_predictions_filename):
-    pass
+def transitionProb(twitter_train_tag,twitter_tags, trans_probs_filename):
+    ### TRAINING ###
+    # Generating the Tweets and their Tags
+    traintweets = []
+    current = []
+    with open(twitter_train_tag, "r") as fin:
+        for l in fin:
+            if l == "\n": #if the line is empty, end of tweet. 
+                traintweets.append(current)
+                current = []
+            else: # data to be added to current tweet. 
+                traindata = l.split("\t") #splits WORD and TAG (seperated by a tab)
+                traindata[1] = traindata[1][:-1]
+                current.append(tuple(traindata))
+
+    #Model the transition probabilities as a Dataframe
+    transitionCount = pd.DataFrame(columns = ["From", "To"])
+    for tweet in traintweets:
+        for i in range(len(tweet)):
+            tag = tweet[i][1]
+            if i == 0: # First word in tweet: Start State > Tag
+                fromToPlacement = {"From": ["START"], "To": [tag]} #matches the from and to
+                temp = pd.DataFrame.from_dict(fromToPlacement) #transforms dictionary into df to be added into transitionCount
+                transitionCount = transitionCount.append(temp, ignore_index = True)
+            elif i == len(tweet) - 1: # Last word in tweet: Tag > End State
+                fromToPlacement = {"From": [tag], "To": ["END"]} #matches the from and to
+                temp = pd.DataFrame.from_dict(fromToPlacement) #transforms dictionary into df to be added into transitionCount
+                transitionCount = transitionCount.append(temp, ignore_index = True)
+            else: # One of the middle words in the tweet
+                fromTag = tweet[i-1][1] # extract the previous word's tag
+                fromToPlacement = {"From": [fromTag], "To": [tag]} #matches the from and to
+                temp = pd.DataFrame.from_dict(fromToPlacement) #transforms dictionary into df to be added into transitionCount
+                transitionCount = transitionCount.append(temp, ignore_index = True)
+    
+    #Using the dataframe, get all counts
+    #Total Counts
+    transitionCount = transitionCount.groupby(['From', 'To']).size().reset_index()
+    transitionCount.columns = ["From", "To", "CountOfTags"]
+    uniqueFromTags = transitionCount["From"].unique() #all unique tags in the training set
+    #From Counts
+    fromTags = transitionCount.drop(columns = "To") #removes the next from transitionCount
+    fromTags = transitionCount.groupby(['From']).size().to_frame('CountOfTags')
+    fromTags = fromTags.reset_index()
+
+    # Getting a list of unique tags
+    uniqueTags = []
+    with open(twitter_tags, "r") as fin:
+        for l in fin:
+            tag = l[:-1]
+            uniqueTags += [tag] #adds the tag into the list
+    uniqueTagsWithStart = uniqueTags + ["START"]
+    uniqueTagswithEnd = uniqueTags + ["END"]
+    numUniqueTags = len(uniqueTags) + 2
+
+    #Getting the Transition Probabilities
+    sigma = 0.1
+    denom = 0.1 * (numUniqueTags+1)
+    transitionProb = transitionCount.copy() #replicating the dataframe
+    transitionProb = transitionCount.groupby(["From", "To"])['CountOfTags'].sum().rename("ProbabilityOfTags")
+    transitionProb = (transitionProb + sigma) / (transitionProb.groupby(level=0).sum() + denom)
+    transitionProb.columns = ["From", "To", "ProbabilityOfTags"]
+    transitionProb = transitionProb.reset_index()
+
+    for i in uniqueTagsWithStart:
+        if i not in uniqueFromTags: #if the tag is not in the training data
+            for j in uniqueTagswithEnd:
+                probOfTag = sigma / denom
+                #Same method as above
+                fromToPlacement = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
+                temp = pd.DataFrame.from_dict(fromToPlacement)
+                transitionProb = transitionProb.append(temp, ignore_index = True)
+        #for each From tag, get a list of the possible unique To tags
+        uniqueTo = transitionCount[transitionCount["From"] == i]["To"].unique()
+        if i != "START":
+            enumTag = uniqueTagswithEnd
+        elif i == "START":
+            enumTag = uniqueTags
+        for j in enumTag:
+            if j not in uniqueTo:
+                countOfFrom = fromTags[fromTags["From"]==i].iloc[0]["CountOfTags"]
+                probOfTag = sigma / (countOfFrom + denom)
+                fromToPlacement = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
+                temp = pd.DataFrame.from_dict(fromToPlacement)
+                transitionProb = transitionProb.append(temp, ignore_index = True)
+    
+    transitionProb.to_csv(trans_probs_filename, index=None)
+    return transitionProb
+
+def outputAndTransitionProbs(twitter_train_tag,twitter_tags, trans_probs_filename):
+    countOutputNumerator(twitter_train_tag,twitter_tags)
+    transitionProb(twitter_train_tag,twitter_tags, trans_probs_filename)
+
+def toDict(transdf, a, b):
+        """
+        Converts transition prob to a nested dict
+        """
+        from collections import defaultdict
+        d = defaultdict(dict)
+
+        for i, row in transdf.iterrows():
+            d[str(row[a])][str(row[b])] = row.drop([a, b]).to_dict()
+
+        transDict = dict(d)
+
+        return transDict
+
+def initializationStep(states, trans_prob, output_prob, sequence):
+
+    # get START probabilities
+    start_prob = trans_prob["START"]
+    
+    # Define first word
+    firstWord = sequence[0]
+
+    # Define statistics for pi and backpointer
+    numLength = len(sequence)
+    numState = len(states)
+
+    # Creating pi and Backpointer
+    pi = np.zeros(shape=(numLength, numState)) #initiates 0s for pi
+    backpointer = np.zeros(shape=(numLength, numState)) #initiates 0s for backpointer
+
+    # Iterate through states
+    for i, state in enumerate(states):
+        # get START -> state probability
+        stateProb = start_prob[state]
+        ao_v = stateProb['ProbabilityOfTag']
+
+        # get state -> output probability given word
+        ## Check if word exists in output probability
+        if firstWord in output_prob:
+            result_dict = output_prob[firstWord]
+        else:
+            result_dict = output_prob["NONE"]
+
+        if state in result_dict:
+            bv_x1 = result_dict[state]['ProbabilityOfTag']
+        else:
+            result_dict = output_prob["NONE"]
+            bv_x1 = result_dict[state]['ProbabilityOfTag']
+
+        # Calculate Prob
+        prob = ao_v*bv_x1
+        
+        # Store in pi
+        pi[0][i] = prob
+
+    
+    return [pi, backpointer]
+
+def compute_viterbi(states, trans_prob, output_prob, sequence, pi, backpointer): #viterbi algo
+
+    output_prob["NONE"] = ''
+
+    def find_max(trans_prob, state, states, index, stateIndex, bv_xk, pi):
+        # retrieve pi values
+        pi_kminus1 = pi[index - 1]
+
+        # set temp holder for results
+        argMax = -1
+        maxVal = -1
+
+        # enumerate for u
+        for priorIndex, prior in enumerate(states):
+
+            # get prior probabilities
+            prior_prob = trans_prob[prior]
+
+            # get prior -> state probability
+            state_prob = prior_prob[state]
+            au_v = state_prob['ProbabilityOfTag']
+
+            # get previous pi
+            pi_kminus1_prior = pi_kminus1[priorIndex]
+
+            # calculate result
+            piResult = pi_kminus1_prior*au_v*bv_xk
+            
+            if piResult > maxVal:
+                maxVal = piResult
+                argMax = priorIndex
+
+        return [maxVal, argMax]
+
+    lastIndex = len(sequence) - 1
+
+    for index, tweet in enumerate(sequence):
+
+        for word in tweet:
+            ## Check if word exists in output probability
+            if word in output_prob:
+                result_dict = output_prob[word]
+            else:
+                result_dict = output_prob["NONE"]
+
+            # START is covered in zero states
+            if index != 0:
+                for stateIndex, state in enumerate(states):
+
+                    # Check if state exists in word dict
+                    if state in result_dict:
+                        bv_xk = result_dict[state]['ProbabilityOfTag']
+                    else:
+                        result_dict_else = output_prob["NONE"]
+                        bv_xk = result_dict_else[state]['ProbabilityOfTag']
+
+                    # finding max and argmax
+                    max_ArgMax_result = find_max(trans_prob, state, states, index, stateIndex, bv_xk, pi)
+                    pi[index][stateIndex] = max_ArgMax_result[0]
+                    backpointer[index][stateIndex] = max_ArgMax_result[1]
+
+                # ensure that probability does not go to zero for super long tweets
+                if all(i <= 0.00001 for i in pi[index]):
+                    pi[index] = [i * 10000 for i in pi[index]]
+    
+    return [pi, backpointer]
+
+def getBackPointer(pi, backpointer, sequence, states):
+    # Get last state and index
+    len_of_sequence = len(sequence)
+    pi_list = pi[len_of_sequence-1]
+    curr_index = np.argmax(pi_list)
+    state_result = [states[curr_index]]
+    path = [curr_index]
+    prob_path = [pi[len_of_sequence-1][curr_index]]
+
+    # access the relevant state
+    for index in range(len_of_sequence-1, 0, -1):
+        
+        # Get index
+        curr_index = int(backpointer[index][curr_index])
+
+        # Get state
+        state_result += [states[curr_index]]
+
+        # Get path
+        path += [curr_index]
+
+        # Get prob
+        prob_path += [pi[len_of_sequence-1][curr_index]]
+    
+    # reverse to get actual result
+    list.reverse(state_result)
+    list.reverse(path)
+    list.reverse(prob_path)
+    
+    return [state_result, path, prob_path]
+
+def run_viterbi(states,trans_prob,output_prob, sequence):
+    """
+    Given a sequence, the possible states, trans probs, and output probs, predicts tags for the sequence
+    """
+    # Initialise pi and backpointer, and compute results for START
+    init_pi, init_backpointer = initializationStep(states, trans_prob, output_prob, sequence)
+
+    # Compute viterbi for the remaining sequence
+    pi, backpointer = compute_viterbi(states, trans_prob, output_prob, sequence, init_pi, init_backpointer)
+    
+    # get the backpointer results, which is a tuple of 3 items: the state_result, the path, and the prob_path
+    backpointer_result = getBackPointer(pi, backpointer, sequence, states)
+    
+    return backpointer_result
+
+def viterbi_predict(in_tags_filename, in_trans_probs_filename, prob_dict, in_test_filename, out_predictions_filename):
+   
+    # Import the relevant files
+    test_data =[]
+    current_test = []
+    with open(in_test_filename, "r") as f:
+        for line in f:
+            if line == "\n": 
+                test_data.append(current_test)
+                current_test = []
+            else: 
+                current_test.append(line[:-1])
+
+    states = []
+    current_state = []
+    with open(in_tags_filename, "r") as f:
+        for line in f:
+            if line == "\n": 
+                states.append(current_state)
+                current_state = []
+            else:
+                current_state.append(line[:-1])
+
+    # Convert transition and output probs to dict
+    output_prob = prob_dict
+    trans_prob = toDict(pd.read_csv(in_trans_probs_filename),"From","To")
+    print(trans_prob)
+
+    # Initialise 3 lists to save the results for each tweet in the test data
+    state_result = []
+    path = []
+    prob_path = []
+
+    # iterate through all tweets
+    for tweet in test_data:
+
+        viterbi_predictions = run_viterbi(states,trans_prob,output_prob, test_data)
+
+        state_result += viterbi_predictions[0]
+        path += viterbi_predictions[1]
+        prob_path += viterbi_predictions[2]
+
+    # Write predictions to file
+    with open(out_predictions_filename, "w") as f:
+        for prediction in state_result:
+            f.write(prediction + "\n")
 
 def viterbi_predict2(in_tags_filename, in_trans_probs_filename, in_output_probs_filename, in_test_filename,
                      out_predictions_filename):
@@ -226,15 +533,17 @@ def run():
     correct, total, acc = evaluate(naive_prediction_filename2, in_ans_filename)
     print(f'Naive prediction2 accuracy:    {correct}/{total} = {acc}')
 
-    # trans_probs_filename =  f'{ddir}/trans_probs.txt'
-    # output_probs_filename = f'{ddir}/output_probs.txt'
+    trans_probs_filename =  f'{ddir}/trans_probs.txt'
+    output_probs_filename = f'{ddir}/output_probs.txt'
 
-    # in_tags_filename = f'{ddir}/twitter_tags.txt'
-    # viterbi_predictions_filename = f'{ddir}/viterbi_predictions.txt'
-    # viterbi_predict(in_tags_filename, trans_probs_filename, output_probs_filename, in_test_filename,
-    #                 viterbi_predictions_filename)
-    # correct, total, acc = evaluate(viterbi_predictions_filename, in_ans_filename)
-    # print(f'Viterbi prediction accuracy:   {correct}/{total} = {acc}')
+    transitionProb(in_train_filename, in_tag_filename, trans_probs_filename)
+
+    in_tags_filename = f'{ddir}/twitter_tags.txt'
+    viterbi_predictions_filename = f'{ddir}/viterbi_predictions.txt'
+    viterbi_predict(in_tags_filename, trans_probs_filename, prob_dict, in_test_filename,
+                    viterbi_predictions_filename)
+    correct, total, acc = evaluate(viterbi_predictions_filename, in_ans_filename)
+    print(f'Viterbi prediction accuracy:   {correct}/{total} = {acc}')
 
     # trans_probs_filename2 =  f'{ddir}/trans_probs2.txt'
     # output_probs_filename2 = f'{ddir}/output_probs2.txt'
