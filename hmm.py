@@ -92,7 +92,7 @@ def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_fil
                 tag = random.choice(['@',',','L','~','&','S','N','A','G','$','V','R','X','E','T','M','D','O','Z','!','^','U','P','Y'])
                 found = True
         predict_tag.append(tag)
-    print(len(predict_tag))
+    # print(len(predict_tag))
     text = open("naive_predictions.txt","w")
     for element in predict_tag :
         text.write(element + "\n")
@@ -101,8 +101,8 @@ def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_fil
     pass
 
 def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename, out_prediction_filename):
-    # j = argmax P(y = j| x = w)
-    # ie. argmax P(y = j, x = w) as denominator P(x = w) constant for all j
+    # j* = argmax P(y = j| x = w)
+    # ie. argmax P(y = j, x = w) as denominator P(x = w) constant for each j
     # multiply output probabilities from naive_output_probs.txt by P(y = j)
 
     output = ""
