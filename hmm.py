@@ -42,13 +42,13 @@ def countOutputNumerator(twitter_train_tag,twitter_tags) :
             else :
                 dict_count[valuestring][string_list[1]] = 1
 
-    dict_prob = dict_count;
+    dict_prob = dict_count
     for word in dict_prob :
         for tag in dict_prob[word] :
             numerator = dict_count[word][tag] + delta
             denominator = twitter_tags_dict[tag] + delta * (len(dict) +1)
             dict_prob[word][tag] = numerator/denominator
-    print(dict_prob)
+    # print(dict_prob)
     return dict_prob
 
 def dictToTxt(file) :
@@ -106,7 +106,6 @@ def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename
     # multiply output probabilities from naive_output_probs.txt by P(y = j)
 
     output = ""
-    delta = 0.1
 
     # get all tags as list
     with open('twitter_tags.txt') as tags_file:
@@ -121,9 +120,17 @@ def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename
     
     with open(in_test_filename) as test_file:
         for l in test_file.readlines():
-            l = l.strip()
-            # case: empty line
+            l = l.strip().lower()
+
+            # Improvement: preprocessing by clustering
+            if '@user' in l:
+                l = '@user'
+
+            if 'http' in l:
+                l = 'http'
+            
             if (len(l) == 0):
+                # case: empty line
                 output += '\n'
             else:
                 # case: word to be processed
@@ -135,11 +142,8 @@ def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename
                         highest_prob_tag = max(probabilities, key=lambda k: probabilities[k])
                 else:
                     # case: word not found in output prob dict
-                    # smoothing 
-                    smoothing_prob = dict()
-                    for key in prob_tags:
-                        smoothing_prob[key] = delta * prob_tags[key]
-                    highest_prob_tag = max(smoothing_prob, key=lambda k: smoothing_prob[k])
+                    # choose highest probability tag
+                    highest_prob_tag = max(prob_tags, key=lambda k: prob_tags[k])
 
                 output += highest_prob_tag + '\n'
     text = open(out_prediction_filename,"w")
