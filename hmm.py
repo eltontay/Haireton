@@ -713,7 +713,7 @@ def viterbi_predict2(in_tags_filename, in_trans_probs_filename2, in_output_probs
 
     # iterate through all tweets
     for tweet in testData:
-
+    
         viterbi_predictions = viterbiAlgo(states,trans_prob,output_prob,tweet)
 
         state_result += viterbi_predictions[0]
