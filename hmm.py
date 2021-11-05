@@ -1,251 +1,171 @@
-import random
 import pandas as pd
 import numpy as np
 
-# return dict due to complications when opening file
-def countOutputNumerator(twitter_train_tag,twitter_tags) :
-    
-    # numerator -> count using train and tags, see how many respective word is pegged to that tag
-    with open(twitter_train_tag) as fin:
-        predicted_tags = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
-    
-    #for denominator
-    with open(twitter_tags) as fin:
-        twitter_tags = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
-
-    twitter_tags_dict = { tag : 0 for tag in twitter_tags}
-    #iterate through the predicted tags, store in key-value dict
-    dict = {}
-    dict_count = {} #denominator
-    dict_prob = {} #probability
-    delta = 1 # can also be 0.01, 0.1, 1, 10
-    for string in predicted_tags :
-        string_list = string.split("\t")
-        valuestring = string_list[0].lower()
-        #filter all the users into the same key
-        if valuestring.startswith('@user') :
-            valuestring = '@user'
-        #filter all the http into the http
-        if valuestring.startswith('http') :
-            valuestring = 'http'
-        twitter_tags_dict[string_list[1]] += 1 #counting denom
-        #empty list
-        if dict.get(valuestring) == None:
-            dict[valuestring] = [string_list[1]]
-            dict_count[valuestring] = {}
-            dict_count[valuestring][string_list[1]] = 1
-        #not empty list
-        else :
-            dict[valuestring].append(string_list[1])
-            # value as a dictionary
-            if dict_count[valuestring].get(string_list[1]) :
-                dict_count[valuestring][string_list[1]] += 1
-            else :
-                dict_count[valuestring][string_list[1]] = 1
-
-    dict_prob = dict_count
-    for word in dict_prob :
-        for tag in dict_prob[word] :
-            numerator = dict_count[word][tag] + delta
-            denominator = twitter_tags_dict[tag] + delta * (len(dict) +1)
-            dict_prob[word][tag] = numerator/denominator
-    # print(dict_prob)
-    return dict_prob
-
-def dictToTxt(file) :
-    with open('naive_output_probs.txt','w') as data :
-        for k,v in file.items() :
-            data.write("%s:%s\n" % (k,v))
-    return data
-
-def naive_predict(in_output_probs_filename, in_test_filename, out_prediction_filename):
-
-    #reading twitter_dev_no_tags
-    with open(in_test_filename) as fin:
-        test_file = [l.strip() for l in fin.readlines() if len(l.strip()) != 0]
-    
-    # print(in_output_probs_filename)
-    predict_tag = []
-    for word in test_file :
-        highest = 0
-        tag = ''
-        found = False # if the word doesnt match , take away the last letter from the word and check again
-        changed_word = word.lower()
-        #filter all the users into the same key
-        if changed_word.startswith('@user') :
-            changed_word = '@user'
-        #filter all the http into the http
-        if changed_word.startswith('http') :
-            changed_word = 'http'
-        while found == False :
-            if in_output_probs_filename.get(changed_word) != None : 
-                for key in in_output_probs_filename[changed_word] :
-                    curr_prob = in_output_probs_filename[changed_word][key]
-                    if curr_prob > highest : 
-                        highest = curr_prob
-                        tag = key
-                found = True
-            elif len(changed_word) > 1:
-                changed_word = changed_word[:-1]
-            # else :
-            #     found = True
-            else : # if word does not exist with the training dataset, use random
-                tag = random.choice(['@',',','L','~','&','S','N','A','G','$','V','R','X','E','T','M','D','O','Z','!','^','U','P','Y'])
-                found = True
-        predict_tag.append(tag)
-    # print(len(predict_tag))
-    text = open("naive_predictions.txt","w")
-    for element in predict_tag :
-        text.write(element + "\n")
-    text.close()
-    return text
-    pass
-
-def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename, out_prediction_filename):
-    # j* = argmax P(y = j| x = w)
-    # ie. argmax P(y = j, x = w) as denominator P(x = w) constant for each j
-    # multiply output probabilities from naive_output_probs.txt by P(y = j)
-
-    output = ""
-
-    # get all tags as list
-    with open('twitter_tags.txt') as tags_file:
-        tags = [l.strip() for l in tags_file.readlines() if len(l.strip()) != 0]
-
-    # get P(y = j)
-    with open(in_train_filename) as train_file:
-        train_tags = [l.strip()[-1] for l in train_file.readlines() if len(l.strip()) != 0]
-        prob_tags = dict()
-        for tag in tags:
-            prob_tags[tag] = train_tags.count(tag) / len(train_tags)
-    
-    with open(in_test_filename) as test_file:
-        for l in test_file.readlines():
-            l = l.strip().lower()
-
-            # Improvement: preprocessing by clustering
-            if '@user' in l:
-                l = '@user'
-
-            if 'http' in l:
-                l = 'http'
-            
-            if (len(l) == 0):
-                # case: empty line
-                output += '\n'
-            else:
-                # case: word to be processed
-                probabilities = dict()
-                if (in_output_probs_filename.get(l, None) != None):
-                    # case: word found in output prob dict
-                    for key in in_output_probs_filename[l]:
-                        probabilities[key] = in_output_probs_filename[l][key] * prob_tags[key]
-                        highest_prob_tag = max(probabilities, key=lambda k: probabilities[k])
-                else:
-                    # case: word not found in output prob dict
-                    # choose highest probability tag
-                    highest_prob_tag = max(prob_tags, key=lambda k: prob_tags[k])
-
-                output += highest_prob_tag + '\n'
-    text = open(out_prediction_filename,"w")
-    text.write(output)
-
-def transitionProb(twitter_train_tag,twitter_tags, trans_probs_filename):
-    ### TRAINING ###
-    # Generating the Tweets and their Tags
-    traintweets = []
-    current = []
-    with open(twitter_train_tag, "r") as fin:
+########### Helper Codes for: Q2(a) ###########
+def output_prob(in_train_filename, output_probs_filename, delta):
+    ### Extracting all the data from the training set
+    trainData = []
+    curr = []
+    with open(in_train_filename, "r") as fin:
         for l in fin:
-            if l == "\n": #if the line is empty, end of tweet. 
-                traintweets.append(current)
-                current = []
-            else: # data to be added to current tweet. 
-                traindata = l.split("\t") #splits WORD and TAG (seperated by a tab)
-                traindata[1] = traindata[1][:-1]
-                current.append(tuple(traindata))
+            if l == "\n":
+                trainData.append(curr)
+                curr = []
+            else:
+                wordtag = l.split("\t")
+                wordtag[1] = wordtag[1][:-1]
+                curr.append(tuple(wordtag))
 
-    #Model the transition probabilities as a Dataframe
-    transitionCount = pd.DataFrame(columns = ["From", "To"])
-    for tweet in traintweets:
-        for i in range(len(tweet)):
-            tag = tweet[i][1]
-            if i == 0: # First word in tweet: Start State > Tag
-                fromToPlacement = {"From": ["START"], "To": [tag]} #matches the from and to
-                temp = pd.DataFrame.from_dict(fromToPlacement) #transforms dictionary into df to be added into transitionCount
-                transitionCount = transitionCount.append(temp, ignore_index = True)
-            elif i == len(tweet) - 1: # Last word in tweet: Tag > End State
-                fromToPlacement = {"From": [tag], "To": ["END"]} #matches the from and to
-                temp = pd.DataFrame.from_dict(fromToPlacement) #transforms dictionary into df to be added into transitionCount
-                transitionCount = transitionCount.append(temp, ignore_index = True)
-            else: # One of the middle words in the tweet
-                fromTag = tweet[i-1][1] # extract the previous word's tag
-                fromToPlacement = {"From": [fromTag], "To": [tag]} #matches the from and to
-                temp = pd.DataFrame.from_dict(fromToPlacement) #transforms dictionary into df to be added into transitionCount
-                transitionCount = transitionCount.append(temp, ignore_index = True)
+    ###  Process the counts in the following way
+    # {tag1: {                                  > each unique tag
+    #   numAppeared: n,                         > tracks the num of times this tag appears
+    #   "words": {word1: x, word2: y,...}       > tracks the words with this tag, and their num of appearences
+    # }}
+    dictOfTags = {}
     
-    #Using the dataframe, get all counts
-    #Total Counts
-    transitionCount = transitionCount.groupby(['From', 'To']).size().reset_index()
+    for tweet in trainData:
+        for wordtag in tweet:
+            word = wordtag[0]
+            tag = wordtag[1]
+
+            if tag not in dictOfTags:
+                dictOfTags[tag] = {"numAppeared": 1, "words": {word: 1}}
+            else: 
+                dictOfTags[tag]["numAppeared"] += 1
+                if word not in dictOfTags[tag]["words"]:
+                    dictOfTags[tag]["words"][word] = 1
+                else:
+                    dictOfTags[tag]["words"][word] += 1
+
+    ### Get the total number of unique words
+    num_words = len({word for tag in dictOfTags.values() for word in tag["words"]})
+
+    for tag in dictOfTags:
+        yj = dictOfTags[tag]["numAppeared"] # count(y = j)
+        # UNSEEN WORDS: let "WordDoesNotExist" be the placeholder for unseen words
+        # if a word does not existing in the train set: count(y = j → x = w) = 0 
+        dictOfTags[tag]["words"]["WordDoesNotExist"] = delta / (yj + delta * (num_words + 1)) # 
+        for word in dictOfTags[tag]["words"]:
+            yjxw = dictOfTags[tag]["words"][word] # count(y = j → x = w) 
+
+            bjw = (yjxw + delta) / (yj + delta*(num_words + 1))
+            dictOfTags[tag]["words"][word] = bjw # replaces the count of the word to the prob of the word
+    
+    ### Creating the final output
+    result = {"tag": [], "word": [], "prob": []}
+
+    for tag in dictOfTags:
+        for word in dictOfTags[tag]["words"]:
+            bjw = dictOfTags[tag]["words"][word]
+            result["tag"].append(tag)
+            result["word"].append(word)
+            result["prob"]. append(bjw)
+    
+    ### Create a dataframe as such:
+    # Tag | Word | Probability is stored
+    output_probs = pd.DataFrame.from_dict(result)
+    output_probs.to_csv(output_probs_filename, index=False) 
+
+########### Helper Codes for: Q4(a) ###########
+def trans_prob(in_train_filename, trans_probs_filename, in_tags_filename, delta):
+     ### Extracting all the data from the training set
+    trainData = []
+    curr = []
+    with open(in_train_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                trainData.append(curr)
+                curr = []
+            else:
+                wordtag = l.split("\t")
+                wordtag[1] = wordtag[1][:-1]
+                curr.append(tuple(wordtag))
+    
+    ### Creating all transition pairs
+    # This data will be stored as a dataframe as such:
+    # From  | To
+    # START | tag1
+    # tag1  | tag2 ...
+
+    transitionsPairs = pd.DataFrame(columns = ["From", "To"])
+    for tweet in trainData:
+        for wordNum in range(len(tweet)): # Using this to be able to track the first and last word.
+            toTag = tweet[wordNum][1]
+            if wordNum == 0: # If this is the first word
+                # Generate the START -> tag pair
+                pair = {"From": ["START"], "To": [toTag]} 
+            else: # A previous tag has been present
+                # Generate the tag -> tag pair
+                fromTag = tweet[wordNum - 1][1] # extracts the previous tag
+                pair = {"From": [fromTag], "To": [toTag]}
+
+            transitionsPairs = transitionsPairs.append(pd.DataFrame.from_dict(pair), ignore_index=True) # Records the pair
+
+            if wordNum == len(tweet) - 1: # If this is the last word
+                # Generate tag -> END pair
+                lastpair = {"From": [toTag], "To": ["END"]}
+                transitionsPairs = transitionsPairs.append(pd.DataFrame.from_dict(lastpair), ignore_index=True)
+    
+    ### Converting transition Counts to Probabilities
+    # Count(fromTag > toTag)
+    transitionCount = transitionsPairs.groupby(['From', 'To']).size().reset_index()
     transitionCount.columns = ["From", "To", "CountOfTags"]
-    uniqueFromTags = transitionCount["From"].unique() #all unique tags in the training set
-    #From Counts
-    fromTags = transitionCount.drop(columns = "To") #removes the next from transitionCount
-    fromTags = transitionCount.groupby(['From']).size().to_frame('CountOfTags')
+    uniqueFromTags_trained = transitionCount["From"].unique()
+
+    # Count(fromTag)
+    fromTags = transitionCount.drop(columns = "To")
+    fromTags = transitionCount.groupby(['From']).size().to_frame('CountOfFromTags')
     fromTags = fromTags.reset_index()
 
-    # Getting a list of unique tags
+    ### Extracting all possible unique tags
     uniqueTags = []
-    with open(twitter_tags, "r") as fin:
+    with open(in_tags_filename, "r") as fin:
         for l in fin:
             tag = l[:-1]
-            uniqueTags += [tag] #adds the tag into the list
+            uniqueTags += [tag]
     uniqueTagsWithStart = uniqueTags + ["START"]
     uniqueTagswithEnd = uniqueTags + ["END"]
     numUniqueTags = len(uniqueTags) + 2
 
-    #Getting the Transition Probabilities
-    sigma = 0.1
-    denom = 0.1 * (numUniqueTags+1)
-    transitionProb = transitionCount.copy() #replicating the dataframe
+    ### Converting Counts into Transition Probabilities
+    denom = delta * (numUniqueTags+1)
+
+    # Create a datafram to initialize the combinations of transitions
+    transitionProb = transitionCount.copy()
     transitionProb = transitionCount.groupby(["From", "To"])['CountOfTags'].sum().rename("ProbabilityOfTags")
-    transitionProb = (transitionProb + sigma) / (transitionProb.groupby(level=0).sum() + denom)
+    transitionProb = (transitionProb + delta) / (transitionProb.groupby(level=0).sum() + denom)
     transitionProb.columns = ["From", "To", "ProbabilityOfTags"]
     transitionProb = transitionProb.reset_index()
 
-    for i in uniqueTagsWithStart:
-        if i not in uniqueFromTags: #if the tag is not in the training data
+    for i in uniqueTagsWithStart: # Goes through all possible unique tag that could be the From tag
+        # Creating unseen combinations
+        if i not in uniqueFromTags_trained:
             for j in uniqueTagswithEnd:
-                probOfTag = sigma / denom
-                #Same method as above
-                fromToPlacement = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
-                temp = pd.DataFrame.from_dict(fromToPlacement)
-                transitionProb = transitionProb.append(temp, ignore_index = True)
-        #for each From tag, get a list of the possible unique To tags
+                probOfTag = delta / denom # smoothing as per Qn 2
+                pair = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
+                transitionProb = transitionProb.append(pd.DataFrame.from_dict(pair), ignore_index=True)
+        
+        # For each From Tag, get all the possible To Tags
         uniqueTo = transitionCount[transitionCount["From"] == i]["To"].unique()
         if i != "START":
-            enumTag = uniqueTagswithEnd
+            possibleTo = uniqueTagswithEnd # The next tag can be any of the unique tags + "END" tag
         elif i == "START":
-            enumTag = uniqueTags
-        for j in enumTag:
+            possibleTo = uniqueTags # The next tag can only be only of another unique tag.
+        
+        for j in possibleTo: 
             if j not in uniqueTo:
-                countOfFrom = fromTags[fromTags["From"]==i].iloc[0]["CountOfTags"]
-                probOfTag = sigma / (countOfFrom + denom)
-                fromToPlacement = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
-                temp = pd.DataFrame.from_dict(fromToPlacement)
-                transitionProb = transitionProb.append(temp, ignore_index = True)
+                countOfFrom = fromTags[fromTags["From"]==i].iloc[0]["CountOfFromTags"]
+                probOfTag = delta / (countOfFrom + denom)
+                pair = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
+                transitionProb = transitionProb.append(pd.DataFrame.from_dict(pair), ignore_index = True)
     
     transitionProb.to_csv(trans_probs_filename, index=None)
+    
     return transitionProb
 
-def outputAndTransitionProbs(twitter_train_tag,twitter_tags, trans_probs_filename):
-    countOutputNumerator(twitter_train_tag,twitter_tags)
-    transitionProb(twitter_train_tag,twitter_tags, trans_probs_filename)
-
+########### Helper Codes for: Q4(b) ###########
+### To transform output_prob and trans_prob into a nested dictionary for easy access.
 def toDict(transdf, a, b):
-        """
-        Converts transition prob to a nested dict
-        """
         from collections import defaultdict
         d = defaultdict(dict)
 
@@ -256,125 +176,114 @@ def toDict(transdf, a, b):
 
         return transDict
 
-def initializationStep(states, trans_prob, output_prob, sequence):
+def initializationStep(states, trans_prob, output_prob, tweet):
+    ### This aims to achieve the following
+    # for state 1 to N:
+    #   viterbi[s, 1] <- initialProb * bj
+    #   backpointer <- 0
 
-    # get START probabilities
-    start_prob = trans_prob["START"]
-    
-    # Define first word
-    firstWord = sequence[0]
+    ### Looking at START to tag1
+    initialProb = trans_prob["START"]
+    firstWord = tweet[0]
 
-    # Define statistics for pi and backpointer
-    numLength = len(sequence)
-    numState = len(states)
+    numStatesN = len(states)        
+    numObservationsT = len(tweet)
 
-    # Creating pi and Backpointer
-    pi = np.zeros(shape=(numLength, numState)) #initiates 0s for pi
-    backpointer = np.zeros(shape=(numLength, numState)) #initiates 0s for backpointer
+    ### Create probability matrix Lattice
+    # where columns are observables (words of a sentence in the same sequence as in sentence)
+    # & rows as hidden states(all possible POS Tags are known)
 
-    # Iterate through states
+    # Initializing all placeholders as 0 first
+    vertibiS1 = np.zeros(shape=(numObservationsT, numStatesN))
+    backpointer = np.zeros(shape=(numObservationsT, numStatesN))
+
+    # Iterate through each possible state (set of possible tags)
     for i, state in enumerate(states):
-        # get START -> state probability
-        stateProb = start_prob[state]
-        ao_v = stateProb['ProbabilityOfTag']
+        # Transistion Prob
+        probOfStartingAtState = initialProb[state]
+        aij = probOfStartingAtState["ProbabilityOfTags"]
 
-        # get state -> output probability given word
-        ## Check if word exists in output probability
-        if firstWord in output_prob:
-            result_dict = output_prob[firstWord]
-        else:
-            result_dict = output_prob["NONE"]
-
-        if state in result_dict:
-            bv_x1 = result_dict[state]['ProbabilityOfTag']
-        else:
-            result_dict = output_prob["NONE"]
-            bv_x1 = result_dict[state]['ProbabilityOfTag']
-
-        # Calculate Prob
-        prob = ao_v*bv_x1
+        # Output Prob
+        if firstWord in output_prob: # Word existed in training data
+            probsOfWord = output_prob[firstWord] 
+        else: # Otherwise, use the WordDoesNotExist smoothing probability
+            probsOfWord = output_prob["WordDoesNotExist"]
         
-        # Store in pi
-        pi[0][i] = prob
+        if state in probsOfWord: # Extract Probability from Nested Dictionary
+            bj = probsOfWord[state]['prob']
+        else:
+            probsOfWord = output_prob["WordDoesNotExist"]
+            bj = probsOfWord[state]['prob']
+        
+        prob = aij * bj
+        vertibiS1[0][i] = prob # Initialized the 1 - N state probs, and backpointer remains 0
 
-    
-    return [pi, backpointer]
+    return [vertibiS1, backpointer]
 
-def compute_viterbi(states, trans_prob, output_prob, sequence, pi, backpointer): #viterbi algo
+def recusionStep(states, trans_prob, output_prob, sequence, viterbiST, backpointer):
+    ### Computes the Recursion Step for each 2 to T words, and each 1 to N states
 
-    output_prob["NONE"] = ''
+    ### Helper Function: Finds arg max and max for each individual aij and viterbiST[k]
+    def findMax(trans_prob, state, states, index, stateIndex, b_st, viterbiST):
+        viterbiST_kminus1 = viterbiST[index - 1]
 
-    def find_max(trans_prob, state, states, index, stateIndex, bv_xk, pi):
-        # retrieve pi values
-        pi_kminus1 = pi[index - 1]
-
-        # set temp holder for results
         argMax = -1
         maxVal = -1
 
-        # enumerate for u
-        for priorIndex, prior in enumerate(states):
+        for FromIndex, From in enumerate(states):
+            From_prob = trans_prob[From]
 
-            # get prior probabilities
-            prior_prob = trans_prob[prior]
+            # get From -> state probability
+            state_prob = From_prob[state]
+            aFromTo = state_prob["ProbabilityOfTags"]
 
-            # get prior -> state probability
-            state_prob = prior_prob[state]
-            au_v = state_prob['ProbabilityOfTag']
-
-            # get previous pi
-            pi_kminus1_prior = pi_kminus1[priorIndex]
+            # get previous viterbiST
+            viterbiST_kminus1_From = viterbiST_kminus1[FromIndex]
 
             # calculate result
-            piResult = pi_kminus1_prior*au_v*bv_xk
+            viterbiSTResult = viterbiST_kminus1_From*aFromTo*b_st
             
-            if piResult > maxVal:
-                maxVal = piResult
-                argMax = priorIndex
+            if viterbiSTResult > maxVal:
+                maxVal = viterbiSTResult
+                argMax = FromIndex
 
         return [maxVal, argMax]
 
     lastIndex = len(sequence) - 1
 
-    for index, tweet in enumerate(sequence):
+    for index, word in enumerate(sequence):
+                # Check if word existed in training data
+                if word in output_prob:
+                    probsOfWord = output_prob[word]
+                else: 
+                    probsOfWord = output_prob["WordDoesNotExist"] # If not use WordDoesNotExist smoothing probability
+                
+                if index != 0:
+                    for stateIndex, state in enumerate(states):
+                        # Check if state exists in training data
+                        if state in probsOfWord:
+                            b_st = probsOfWord[state]['prob']
+                        else:
+                            probsOfNoWord = output_prob["WordDoesNotExist"] # If not use WordDoesNotExist smoothing probability
+                            b_st = probsOfNoWord[state]['prob']
+            
+                        # finding max and argmax
+                        max_ArgMax_result = findMax(trans_prob, state, states, index, stateIndex, b_st, viterbiST)
+                        viterbiST[index][stateIndex] = max_ArgMax_result[0]
+                        backpointer[index][stateIndex] = max_ArgMax_result[1]
+                    
+                    #if all(i <= 0.00001 for i in viterbiST[index]):
+                    #    viterbiST[index] = [i * 10000 for i in viterbiST[index]]
+    return [viterbiST, backpointer]
 
-        for word in tweet:
-            ## Check if word exists in output probability
-            if word in output_prob:
-                result_dict = output_prob[word]
-            else:
-                result_dict = output_prob["NONE"]
-
-            # START is covered in zero states
-            if index != 0:
-                for stateIndex, state in enumerate(states):
-
-                    # Check if state exists in word dict
-                    if state in result_dict:
-                        bv_xk = result_dict[state]['ProbabilityOfTag']
-                    else:
-                        result_dict_else = output_prob["NONE"]
-                        bv_xk = result_dict_else[state]['ProbabilityOfTag']
-
-                    # finding max and argmax
-                    max_ArgMax_result = find_max(trans_prob, state, states, index, stateIndex, bv_xk, pi)
-                    pi[index][stateIndex] = max_ArgMax_result[0]
-                    backpointer[index][stateIndex] = max_ArgMax_result[1]
-
-                # ensure that probability does not go to zero for super long tweets
-                if all(i <= 0.00001 for i in pi[index]):
-                    pi[index] = [i * 10000 for i in pi[index]]
-    
-    return [pi, backpointer]
-
-def getBackPointer(pi, backpointer, sequence, states):
+def backPointer(viterbiST, backpointer, sequence, states):
     # Get last state and index
     len_of_sequence = len(sequence)
-    pi_list = pi[len_of_sequence-1]
-    curr_index = np.argmax(pi_list)
+    viterbiST_list = viterbiST[len_of_sequence-1]
+    curr_index = np.argmax(viterbiST_list)
     state_result = [states[curr_index]]
     path = [curr_index]
-    prob_path = [pi[len_of_sequence-1][curr_index]]
+    prob_path = [viterbiST[len_of_sequence-1][curr_index]]
 
     # access the relevant state
     for index in range(len_of_sequence-1, 0, -1):
@@ -389,7 +298,7 @@ def getBackPointer(pi, backpointer, sequence, states):
         path += [curr_index]
 
         # Get prob
-        prob_path += [pi[len_of_sequence-1][curr_index]]
+        prob_path += [viterbiST[len_of_sequence-1][curr_index]]
     
     # reverse to get actual result
     list.reverse(state_result)
@@ -398,48 +307,352 @@ def getBackPointer(pi, backpointer, sequence, states):
     
     return [state_result, path, prob_path]
 
-def run_viterbi(states,trans_prob,output_prob, sequence):
-    """
-    Given a sequence, the possible states, trans probs, and output probs, predicts tags for the sequence
-    """
-    # Initialise pi and backpointer, and compute results for START
-    init_pi, init_backpointer = initializationStep(states, trans_prob, output_prob, sequence)
-
-    # Compute viterbi for the remaining sequence
-    pi, backpointer = compute_viterbi(states, trans_prob, output_prob, sequence, init_pi, init_backpointer)
+### To put together the 3 steps 
+def viterbiAlgo(states,trans_prob,output_prob,sequence):
+     # Initialization Step
+     init_viterbiST, init_backpointer = initializationStep(states, trans_prob, output_prob, sequence)
+     
+     # Recursion Step
+     viterbiST, backpointer = recusionStep(states, trans_prob, output_prob, sequence, init_viterbiST, init_backpointer)
     
-    # get the backpointer results, which is a tuple of 3 items: the state_result, the path, and the prob_path
-    backpointer_result = getBackPointer(pi, backpointer, sequence, states)
+     # Calculating the Backpointers
+     backpointer_result = backPointer(viterbiST, backpointer, sequence, states)
     
-    return backpointer_result
+     return backpointer_result
 
-def viterbi_predict(in_tags_filename, in_trans_probs_filename, prob_dict, in_test_filename, out_predictions_filename):
-   
-    # Import the relevant files
-    test_data =[]
-    current_test = []
-    with open(in_test_filename, "r") as f:
-        for line in f:
-            if line == "\n": 
-                test_data.append(current_test)
-                current_test = []
+########### Helper Codes for: Q5(a) ###########
+### To redefine the output probabilities to account for the @user and http inputs by grouping them
+def output_prob2(in_train_filename, output_probs_filename, delta):
+    ### Extracting all the data from the training set
+    trainData = []
+    curr = []
+    with open(in_train_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                trainData.append(curr)
+                curr = []
+            else:
+                wordtag = l.split("\t")
+                wordtag[1] = wordtag[1][:-1]
+                word = wordtag[0]
+                tag = wordtag[1]
+                changed_word = word.lower()
+                if changed_word.startswith('@user') :
+                    changed_word = '@user'
+                elif changed_word.startswith('http') :
+                    changed_word = 'http'
+                word = changed_word
+                curr.append(tuple(wordtag))
+
+    ###  Process the counts in the following way
+    # {tag1: {                                  > each unique tag
+    #   numAppeared: n,                         > tracks the num of times this tag appears
+    #   "words": {word1: x, word2: y,...}       > tracks the words with this tag, and their num of appearences
+    # }}
+    dictOfTags = {}
+    
+    for tweet in trainData:
+        for wordtag in tweet:
+            word = wordtag[0]
+            tag = wordtag[1]
+
+            if tag not in dictOfTags:
+                dictOfTags[tag] = {"numAppeared": 1, "words": {word: 1}}
             else: 
-                current_test.append(line[:-1])
+                dictOfTags[tag]["numAppeared"] += 1
+                if word not in dictOfTags[tag]["words"]:
+                    dictOfTags[tag]["words"][word] = 1
+                else:
+                    dictOfTags[tag]["words"][word] += 1
+
+    ### Get the total number of unique words
+    num_words = len({word for tag in dictOfTags.values() for word in tag["words"]})
+
+    for tag in dictOfTags:
+        yj = dictOfTags[tag]["numAppeared"] # count(y = j)
+        # UNSEEN WORDS: let "WordDoesNotExist" be the placeholder for unseen words
+        # if a word does not existing in the train set: count(y = j → x = w) = 0 
+        dictOfTags[tag]["words"]["WordDoesNotExist"] = delta / (yj + delta * (num_words + 1)) # 
+        for word in dictOfTags[tag]["words"]:
+            yjxw = dictOfTags[tag]["words"][word] # count(y = j → x = w) 
+
+            bjw = (yjxw + delta) / (yj + delta*(num_words + 1))
+            dictOfTags[tag]["words"][word] = bjw # replaces the count of the word to the prob of the word
+    
+    ### Creating the final output
+    result = {"tag": [], "word": [], "prob": []}
+
+    for tag in dictOfTags:
+        for word in dictOfTags[tag]["words"]:
+            bjw = dictOfTags[tag]["words"][word]
+            result["tag"].append(tag)
+            result["word"].append(word)
+            result["prob"]. append(bjw)
+    
+    ### Create a dataframe as such:
+    # Tag | Word | Probability is stored
+    output_probs = pd.DataFrame.from_dict(result)
+    output_probs.to_csv(output_probs_filename, index=False) 
+
+def trans_prob2(in_train_filename, trans_probs_filename, in_tags_filename, delta):
+     ### Extracting all the data from the training set
+    trainData = []
+    curr = []
+    with open(in_train_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                trainData.append(curr)
+                curr = []
+            else:
+                wordtag = l.split("\t")
+                wordtag[1] = wordtag[1][:-1]
+                word = wordtag[0]
+                tag = wordtag[1]
+                changed_word = word.lower()
+                if changed_word.startswith('@user') :
+                    changed_word = '@user'
+                elif changed_word.startswith('http') :
+                    changed_word = 'http'
+                word = changed_word
+                curr.append(tuple(wordtag))
+
+    
+    ### Creating all transition pairs
+    # This data will be stored as a dataframe as such:
+    # From  | To
+    # START | tag1
+    # tag1  | tag2 ...
+
+    transitionsPairs = pd.DataFrame(columns = ["From", "To"])
+    for tweet in trainData:
+        for wordNum in range(len(tweet)): # Using this to be able to track the first and last word.
+            toTag = tweet[wordNum][1]
+            if wordNum == 0: # If this is the first word
+                # Generate the START -> tag pair
+                pair = {"From": ["START"], "To": [toTag]} 
+            else: # A previous tag has been present
+                # Generate the tag -> tag pair
+                fromTag = tweet[wordNum - 1][1] # extracts the previous tag
+                pair = {"From": [fromTag], "To": [toTag]}
+
+            transitionsPairs = transitionsPairs.append(pd.DataFrame.from_dict(pair), ignore_index=True) # Records the pair
+
+            if wordNum == len(tweet) - 1: # If this is the last word
+                # Generate tag -> END pair
+                lastpair = {"From": [toTag], "To": ["END"]}
+                transitionsPairs = transitionsPairs.append(pd.DataFrame.from_dict(lastpair), ignore_index=True)
+    
+    ### Converting transition Counts to Probabilities
+    # Count(fromTag > toTag)
+    transitionCount = transitionsPairs.groupby(['From', 'To']).size().reset_index()
+    transitionCount.columns = ["From", "To", "CountOfTags"]
+    uniqueFromTags_trained = transitionCount["From"].unique()
+
+    # Count(fromTag)
+    fromTags = transitionCount.drop(columns = "To")
+    fromTags = transitionCount.groupby(['From']).size().to_frame('CountOfFromTags')
+    fromTags = fromTags.reset_index()
+
+    ### Extracting all possible unique tags
+    uniqueTags = []
+    with open(in_tags_filename, "r") as fin:
+        for l in fin:
+            tag = l[:-1]
+            uniqueTags += [tag]
+    uniqueTagsWithStart = uniqueTags + ["START"]
+    uniqueTagswithEnd = uniqueTags + ["END"]
+    numUniqueTags = len(uniqueTags) + 2
+
+    ### Converting Counts into Transition Probabilities
+    denom = delta * (numUniqueTags+1)
+
+    # Create a datafram to initialize the combinations of transitions
+    transitionProb = transitionCount.copy()
+    transitionProb = transitionCount.groupby(["From", "To"])['CountOfTags'].sum().rename("ProbabilityOfTags")
+    transitionProb = (transitionProb + delta) / (transitionProb.groupby(level=0).sum() + denom)
+    transitionProb.columns = ["From", "To", "ProbabilityOfTags"]
+    transitionProb = transitionProb.reset_index()
+
+    for i in uniqueTagsWithStart: # Goes through all possible unique tag that could be the From tag
+        # Creating unseen combinations
+        if i not in uniqueFromTags_trained:
+            for j in uniqueTagswithEnd:
+                probOfTag = delta / denom # smoothing as per Qn 2
+                pair = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
+                transitionProb = transitionProb.append(pd.DataFrame.from_dict(pair), ignore_index=True)
+        
+        # For each From Tag, get all the possible To Tags
+        uniqueTo = transitionCount[transitionCount["From"] == i]["To"].unique()
+        if i != "START":
+            possibleTo = uniqueTagswithEnd # The next tag can be any of the unique tags + "END" tag
+        elif i == "START":
+            possibleTo = uniqueTags # The next tag can only be only of another unique tag.
+        
+        for j in possibleTo: 
+            if j not in uniqueTo:
+                countOfFrom = fromTags[fromTags["From"]==i].iloc[0]["CountOfFromTags"]
+                probOfTag = delta / (countOfFrom + denom)
+                pair = {"From": [i], "To": [j], "ProbabilityOfTags": [probOfTag]}
+                transitionProb = transitionProb.append(pd.DataFrame.from_dict(pair), ignore_index = True)
+    
+    transitionProb.to_csv(trans_probs_filename, index=None)
+    
+    return transitionProb
+
+# Implement the six functions below
+def naive_predict(in_output_probs_filename2, in_test_filename, out_prediction_filename):
+
+    ### Get output_probs from naive output probs.txt
+    output_probs = pd.read_csv(in_output_probs_filename2)
+
+    ### Creates a base of probabilities such that if the test word does not exist, this unseen prob will be used.
+    #This is done by extracting the "WordDoesNotExist" from output probs.
+    notFoundProb = output_probs[output_probs["word"] == "WordDoesNotExist"].drop("word",axis=1).set_index("tag")
+
+    ### Take in test data 
+    testData = []
+    curr = []
+    with open(in_test_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                testData.append(curr)
+                curr = []
+            else:     
+                word = l[:-1]
+                changed_word = word.lower()
+                if '@user' in changed_word :
+                    changed_word = '@user'
+                elif 'http' in changed_word :
+                    changed_word = 'http'
+                word = changed_word
+                curr.append(word)
+
+    with open(out_prediction_filename, "w") as f: # To write out the predictions
+        for tweet in testData:
+            for word in tweet:
+                possibleTags = notFoundProb.copy()
+
+                # Look into output probs gotten from training if the word exists in training set
+                trainedProb = output_probs[output_probs.word == word].set_index("tag")
+                possibleTags.update(trainedProb)
+
+                # Get the tag with the highest Likelihood
+                MLE_tag = possibleTags.idxmax().prob
+                f.write(MLE_tag + "\n")
+            f.write("\n") # Adds space after every Tweet
+
+def naive_predict2(in_output_probs_filename, in_train_filename, in_test_filename, out_prediction_filename):
+    # From Q2: P(x = w|y = j)
+    # RHS of equation: j∗ = argmaxP(y = j|x = w).
+    # Product Rule: P(y = j|x = w) = P(x = w|y = j) * P(y = j) / P(x = w)
+    # Since we are finding the argmax of the tag, P(x = w) can be omiited. And we only need to find P(y = j)
+
+    ### Get output probs
+    output_probs = pd.read_csv(in_output_probs_filename)
+    
+    ### Calculating P(y = j)
+    trainData = []
+    curr = []
+    with open(in_train_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                trainData.append(curr)
+                curr = []
+            else:
+                wordtag = l.split("\t")
+                wordtag[1] = wordtag[1][:-1]
+                word = wordtag[0]
+                tag = wordtag[1]
+                changed_word = word.lower()
+                if changed_word.startswith('@user') :
+                    changed_word = '@user'
+                elif changed_word.startswith('http') :
+                    changed_word = 'http'
+                word = changed_word
+                curr.append(tuple(wordtag))
+
+    # Getting the counts of each tag in the trining data, storing them as:
+    # {tag1: numOfAppearance,
+    # tag2: numOfAppearance, ...}
+    countyj = {} 
+    for tweet in trainData:
+        for wordtag in tweet:
+            tag = wordtag[1]
+            if tag not in countyj:
+                countyj[tag] = 1
+            else:
+                countyj[tag] += 1
+    
+    num_tags = sum(countyj.values()) #retrives the denominator for computing the prob
+    
+    ### Converting the counts of countyj into probabilities
+    # probyj = countyj / num_tags
+    probyj = {}
+    for k,v in countyj.items():
+        probyj[k] = v/num_tags
+
+    ### Take in test data 
+    testData = []
+    curr = []
+    with open(in_test_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                testData.append(curr)
+                curr = []
+            else: 
+                word = l[:-1]
+                changed_word = word.lower()
+                if '@user' in changed_word :
+                    changed_word = '@user'
+                elif 'http' in changed_word :
+                    changed_word = 'http'
+                word = changed_word
+                curr.append(word)
+    
+     ### Creates a base of probabilities such that if the test word does not exist, this unseen prob will be used.
+    notFoundProb = output_probs[output_probs["word"] == "WordDoesNotExist"].drop("word",axis=1).set_index("tag")
+    
+    with open(out_prediction_filename, "w") as f:
+        for tweet in testData:
+            for word in tweet:
+                tagProb = notFoundProb.copy()
+                tagProb.update(output_probs[output_probs.word == word].set_index("tag"))
+
+                # Switching up P(x = w|y = j) to P(y = j|x = w)
+                for index, row in tagProb.iterrows():
+                    new_prob = row.prob * probyj[index]
+                    tagProb.loc[index].prob = new_prob
+                
+                # Getting the argmax of P(y = j|x = w)
+                argmax_tag = tagProb.idxmax().prob
+                f.write(argmax_tag + "\n")
+            f.write("\n")
+
+def viterbi_predict(in_tags_filename, in_trans_probs_filename, in_output_probs_filename, in_test_filename,
+                    out_predictions_filename):
+    in_output_probs = pd.read_csv(in_output_probs_filename)
+    in_trans_probs = pd.read_csv(in_trans_probs_filename)
+
+    testData = []
+    curr = []
+    with open(in_test_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                testData.append(curr)
+                curr = []
+            else:
+                curr.append(l[:-1])
 
     states = []
-    current_state = []
     with open(in_tags_filename, "r") as f:
         for line in f:
-            if line == "\n": 
-                states.append(current_state)
-                current_state = []
-            else:
-                current_state.append(line[:-1])
+            data = line[:-1] # Remove the newline character
+            states += [data]
+
 
     # Convert transition and output probs to dict
-    output_prob = prob_dict
-    trans_prob = toDict(pd.read_csv(in_trans_probs_filename),"From","To")
-    print(trans_prob)
+    output_prob = toDict(in_output_probs,"word","tag")
+    trans_prob = toDict(in_trans_probs,"From","To")
 
     # Initialise 3 lists to save the results for each tweet in the test data
     state_result = []
@@ -447,9 +660,9 @@ def viterbi_predict(in_tags_filename, in_trans_probs_filename, prob_dict, in_tes
     prob_path = []
 
     # iterate through all tweets
-    for tweet in test_data:
+    for tweet in testData:
 
-        viterbi_predictions = run_viterbi(states,trans_prob,output_prob, test_data)
+        viterbi_predictions = viterbiAlgo(states,trans_prob,output_prob,tweet)
 
         state_result += viterbi_predictions[0]
         path += viterbi_predictions[1]
@@ -459,10 +672,58 @@ def viterbi_predict(in_tags_filename, in_trans_probs_filename, prob_dict, in_tes
     with open(out_predictions_filename, "w") as f:
         for prediction in state_result:
             f.write(prediction + "\n")
-
-def viterbi_predict2(in_tags_filename, in_trans_probs_filename, in_output_probs_filename, in_test_filename,
+    
+def viterbi_predict2(in_tags_filename, in_trans_probs_filename2, in_output_probs_filename2, in_test_filename,
                      out_predictions_filename):
-    pass
+    in_output_probs = pd.read_csv(in_output_probs_filename2)
+    in_trans_probs = pd.read_csv(in_trans_probs_filename2)
+
+    testData = []
+    curr = []
+    with open(in_test_filename, "r") as fin:
+        for l in fin:
+            if l == "\n":
+                testData.append(curr)
+                curr = []
+            else:
+                word = l[:-1]
+                changed_word = word.lower()
+                if '@user' in changed_word :
+                    changed_word = '@user'
+                elif 'http' in changed_word :
+                    changed_word = 'http'
+                word = changed_word
+                curr.append(word)
+
+    states = []
+    with open(in_tags_filename, "r") as f:
+        for line in f:
+            data = line[:-1] # Remove the newline character
+            states += [data]
+
+
+    # Convert transition and output probs to dict
+    output_prob = toDict(in_output_probs,"word","tag")
+    trans_prob = toDict(in_trans_probs,"From","To")
+
+    # Initialise 3 lists to save the results for each tweet in the test data
+    state_result = []
+    path = []
+    prob_path = []
+
+    # iterate through all tweets
+    for tweet in testData:
+    
+        viterbi_predictions = viterbiAlgo(states,trans_prob,output_prob,tweet)
+
+        state_result += viterbi_predictions[0]
+        path += viterbi_predictions[1]
+        prob_path += viterbi_predictions[2]
+
+    # Write predictions to file
+    with open(out_predictions_filename, "w") as f:
+        for prediction in state_result:
+            f.write(prediction + "\n")
 
 def forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
                      max_iter, seed, thresh):
@@ -508,99 +769,99 @@ def run():
     uncomment them later.
     This sequence of code corresponds to the sequence of questions in your project handout.
     '''
-    
-    
+
     ddir = './' #your working dir
 
     in_train_filename = f'{ddir}/twitter_train.txt'
-    in_tag_filename = f'{ddir}/twitter_tags.txt'
 
     naive_output_probs_filename = f'{ddir}/naive_output_probs.txt'
 
+    output_prob(in_train_filename, naive_output_probs_filename, 0.1)
+
     in_test_filename = f'{ddir}/twitter_dev_no_tag.txt'
-    
-    prob_dict = countOutputNumerator(in_train_filename,in_tag_filename)
-    dictToTxt(prob_dict)
     in_ans_filename  = f'{ddir}/twitter_dev_ans.txt'
     naive_prediction_filename = f'{ddir}/naive_predictions.txt'
-    naive_predict(prob_dict, in_test_filename, naive_prediction_filename)
-
+    naive_predict(naive_output_probs_filename, in_test_filename, naive_prediction_filename)
     correct, total, acc = evaluate(naive_prediction_filename, in_ans_filename)
     print(f'Naive prediction accuracy:     {correct}/{total} = {acc}')
 
     naive_prediction_filename2 = f'{ddir}/naive_predictions2.txt'
-    naive_predict2(prob_dict, in_train_filename, in_test_filename, naive_prediction_filename2) # used prob_dict instead of naive_output_probs_filename
+    naive_predict2(naive_output_probs_filename, in_train_filename, in_test_filename, naive_prediction_filename2)
     correct, total, acc = evaluate(naive_prediction_filename2, in_ans_filename)
     print(f'Naive prediction2 accuracy:    {correct}/{total} = {acc}')
 
     trans_probs_filename =  f'{ddir}/trans_probs.txt'
     output_probs_filename = f'{ddir}/output_probs.txt'
 
-    transitionProb(in_train_filename, in_tag_filename, trans_probs_filename)
-
     in_tags_filename = f'{ddir}/twitter_tags.txt'
+    trans_prob(in_train_filename, trans_probs_filename, in_tags_filename, 0.1)
+    output_prob(in_train_filename, output_probs_filename, 0.1)
+
     viterbi_predictions_filename = f'{ddir}/viterbi_predictions.txt'
-    viterbi_predict(in_tags_filename, trans_probs_filename, prob_dict, in_test_filename,
+    viterbi_predict(in_tags_filename, trans_probs_filename, output_probs_filename, in_test_filename,
                     viterbi_predictions_filename)
     correct, total, acc = evaluate(viterbi_predictions_filename, in_ans_filename)
     print(f'Viterbi prediction accuracy:   {correct}/{total} = {acc}')
 
-    # trans_probs_filename2 =  f'{ddir}/trans_probs2.txt'
-    # output_probs_filename2 = f'{ddir}/output_probs2.txt'
+    trans_probs_filename2 =  f'{ddir}/trans_probs2.txt'
+    output_probs_filename2 = f'{ddir}/output_probs2.txt'
 
-    # viterbi_predictions_filename2 = f'{ddir}/viterbi_predictions2.txt'
-    # viterbi_predict2(in_tags_filename, trans_probs_filename2, output_probs_filename2, in_test_filename,
-    #                  viterbi_predictions_filename2)
-    # correct, total, acc = evaluate(viterbi_predictions_filename2, in_ans_filename)
-    # print(f'Viterbi2 prediction accuracy:  {correct}/{total} = {acc}')
+    output_prob2(in_train_filename, output_probs_filename2, 0.1)
+    trans_prob2(in_train_filename, trans_probs_filename2, in_tags_filename, 0.1)
 
-    # in_train_filename   = f'{ddir}/twitter_train_no_tag.txt'
-    # in_tag_filename     = f'{ddir}/twitter_tags.txt'
-    # out_trans_filename  = f'{ddir}/trans_probs4.txt'
-    # out_output_filename = f'{ddir}/output_probs4.txt'
-    # max_iter = 10
-    # seed     = 8
-    # thresh   = 1e-4
-    # forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
-    #                  max_iter, seed, thresh)
+    viterbi_predictions_filename2 = f'{ddir}/viterbi_predictions2.txt'
+    viterbi_predict2(in_tags_filename, trans_probs_filename2, output_probs_filename2, in_test_filename,
+                    viterbi_predictions_filename2)
+    correct, total, acc = evaluate(viterbi_predictions_filename2, in_ans_filename)
+    print(f'Viterbi2 prediction accuracy:  {correct}/{total} = {acc}')
 
-    # trans_probs_filename3 =  f'{ddir}/trans_probs3.txt'
-    # output_probs_filename3 = f'{ddir}/output_probs3.txt'
-    # viterbi_predictions_filename3 = f'{ddir}/fb_predictions3.txt'
-    # viterbi_predict2(in_tags_filename, trans_probs_filename3, output_probs_filename3, in_test_filename,
-    #                  viterbi_predictions_filename3)
-    # correct, total, acc = evaluate(viterbi_predictions_filename3, in_ans_filename)
-    # print(f'iter 0 prediction accuracy:    {correct}/{total} = {acc}')
+    #in_train_filename   = f'{ddir}/twitter_train_no_tag.txt'
+    #in_tag_filename     = f'{ddir}/twitter_tags.txt'
+    #out_trans_filename  = f'{ddir}/trans_probs4.txt'
+    #out_output_filename = f'{ddir}/output_probs4.txt'
+    #max_iter = 10
+    #seed     = 8
+    #thresh   = 1e-4
+    #forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
+    #                 max_iter, seed, thresh)
 
-    # trans_probs_filename4 =  f'{ddir}/trans_probs4.txt'
-    # output_probs_filename4 = f'{ddir}/output_probs4.txt'
-    # viterbi_predictions_filename4 = f'{ddir}/fb_predictions4.txt'
-    # viterbi_predict2(in_tags_filename, trans_probs_filename4, output_probs_filename4, in_test_filename,
-    #                  viterbi_predictions_filename4)
-    # correct, total, acc = evaluate(viterbi_predictions_filename4, in_ans_filename)
-    # print(f'iter 10 prediction accuracy:   {correct}/{total} = {acc}')
+    #trans_probs_filename3 =  f'{ddir}/trans_probs3.txt'
+    #output_probs_filename3 = f'{ddir}/output_probs3.txt'
+    #viterbi_predictions_filename3 = f'{ddir}/fb_predictions3.txt'
+    #viterbi_predict2(in_tags_filename, trans_probs_filename3, output_probs_filename3, in_test_filename,
+    #                 viterbi_predictions_filename3)
+    #correct, total, acc = evaluate(viterbi_predictions_filename3, in_ans_filename)
+    #print(f'iter 0 prediction accuracy:    {correct}/{total} = {acc}')
 
-    # in_train_filename   = f'{ddir}/cat_price_changes_train.txt'
-    # in_tag_filename     = f'{ddir}/cat_states.txt'
-    # out_trans_filename  = f'{ddir}/cat_trans_probs.txt'
-    # out_output_filename = f'{ddir}/cat_output_probs.txt'
-    # max_iter = 1000000
-    # seed     = 8
-    # thresh   = 1e-4
-    # forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
-    #                  max_iter, seed, thresh)
+    #trans_probs_filename4 =  f'{ddir}/trans_probs4.txt'
+    #output_probs_filename4 = f'{ddir}/output_probs4.txt'
+    #viterbi_predictions_filename4 = f'{ddir}/fb_predictions4.txt'
+    #viterbi_predict2(in_tags_filename, trans_probs_filename4, output_probs_filename4, in_test_filename,
+    #                 viterbi_predictions_filename4)
+    #correct, total, acc = evaluate(viterbi_predictions_filename4, in_ans_filename)
+    #print(f'iter 10 prediction accuracy:   {correct}/{total} = {acc}')
 
-    # in_test_filename         = f'{ddir}/cat_price_changes_dev.txt'
-    # in_trans_probs_filename  = f'{ddir}/cat_trans_probs.txt'
-    # in_output_probs_filename = f'{ddir}/cat_output_probs.txt'
-    # in_states_filename       = f'{ddir}/cat_states.txt'
-    # predictions_filename     = f'{ddir}/cat_predictions.txt'
-    # cat_predict(in_test_filename, in_trans_probs_filename, in_output_probs_filename, in_states_filename,
-    #             predictions_filename)
+    #in_train_filename   = f'{ddir}/cat_price_changes_train.txt'
+    #in_tag_filename     = f'{ddir}/cat_states.txt'
+    #out_trans_filename  = f'{ddir}/cat_trans_probs.txt'
+    #out_output_filename = f'{ddir}/cat_output_probs.txt'
+    #max_iter = 1000000
+    #seed     = 8
+    #thresh   = 1e-4
+    #forward_backward(in_train_filename, in_tag_filename, out_trans_filename, out_output_filename,
+    #                 max_iter, seed, thresh)
 
-    # in_ans_filename     = f'{ddir}/cat_price_changes_dev_ans.txt'
-    # ave_sq_err, sq_err, num_ex = evaluate_ave_squared_error(predictions_filename, in_ans_filename)
-    # print(f'average squared error for {num_ex} examples: {ave_sq_err}')
+    #in_test_filename         = f'{ddir}/cat_price_changes_dev.txt'
+    #in_trans_probs_filename  = f'{ddir}/cat_trans_probs.txt'
+    #in_output_probs_filename = f'{ddir}/cat_output_probs.txt'
+    #in_states_filename       = f'{ddir}/cat_states.txt'
+    #predictions_filename     = f'{ddir}/cat_predictions.txt'
+    #cat_predict(in_test_filename, in_trans_probs_filename, in_output_probs_filename, in_states_filename,
+    #            predictions_filename)
+
+    #in_ans_filename     = f'{ddir}/cat_price_changes_dev_ans.txt'
+    #ave_sq_err, sq_err, num_ex = evaluate_ave_squared_error(predictions_filename, in_ans_filename)
+    #print(f'average squared error for {num_ex} examples: {ave_sq_err}')
 
 if __name__ == '__main__':
     run()
